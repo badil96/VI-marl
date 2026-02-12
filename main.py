@@ -301,7 +301,7 @@ if __name__ == '__main__':
                     test_scores_dict[episode] = agent_test(model, args.env_name, episode, results_dir =result_dir, steps = 25, save_gifs=False)   
 
             
-        with open(os.path.join(result_dir, 'rewards_seed'+f'{seed}'+'.pkl'), 'wb') as f:  # save testing data
+        with open(os.path.join(result_dir, 'probs_seed'+f'{seed}'+'.pkl'), 'wb') as f:  # save testing data
                 pickle.dump(test_scores_dict, f)
         with open(os.path.join(result_dir, 'distances_seed'+f'{seed}'+'.pkl'), 'wb') as f:  # save testing data
                 pickle.dump(test_distances_dict, f)
