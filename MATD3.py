@@ -28,7 +28,7 @@ def setup_logger(filename):
 class MATD3:
     """A MATD3 agent"""
 
-    def __init__(self, dim_info, capacity, batch_size, actor_lr, critic_lr, policy_freq,use_target_policy_smoothing,  res_dir="./results"):
+    def __init__(self, optimizer, dim_info, capacity, batch_size, actor_lr, critic_lr, policy_freq,use_target_policy_smoothing,  res_dir="./results"):
         # sum all the dims of each agent to get input dim for critic
         print('-----------MATD3----------------')
         global_obs_act_dim = sum(sum(val) for val in dim_info.values())
@@ -36,14 +36,14 @@ class MATD3:
         self.agents = {}
         self.buffers = {}
         for agent_id, (obs_dim, act_dim) in dim_info.items():
-            self.agents[agent_id] = AgentMATD3(obs_dim, act_dim, global_obs_act_dim, actor_lr, critic_lr)
+            self.agents[agent_id] = AgentMATD3(optimizer, obs_dim, act_dim, global_obs_act_dim, actor_lr, critic_lr)
             self.buffers[agent_id] = Buffer(capacity, obs_dim, act_dim, 'cpu')
         self.dim_info = dim_info
         self.buffer_size = self.buffers[agent_id].__len__()
 
         self.batch_size = batch_size
         self.res_dir = res_dir  # directory to save the training result
-        self.logger = setup_logger(os.path.join(res_dir, 'maddpg.log'))
+        self.logger = setup_logger(os.path.join(res_dir, 'matd3.log'))
         self.actor_norms = {agent_id: [] for agent_id in self.agents.keys()}
         self.critic_norms = {agent_id: [] for agent_id in self.agents.keys()}
         self.policy_freq = policy_freq
@@ -107,7 +107,7 @@ class MATD3:
             #action += noise_scale * np.random.randn(*action.shape)
             # action = np.clip(action, -1, 1)
             actions[agent] = a.squeeze(0).argmax().item()
-            self.logger.info(f'{agent} action: {actions[agent]}')
+            #self.logger.info(f'{agent} action: {actions[agent]}')
         return actions
 
     def learn(self, batch_size, gamma):

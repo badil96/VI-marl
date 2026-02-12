@@ -28,14 +28,17 @@ def setup_logger(filename):
 class MADDPG:
     """A MADDPG(Multi Agent Deep Deterministic Policy Gradient) agent"""
 
-    def __init__(self, dim_info, capacity, batch_size, actor_lr, critic_lr, res_dir):
+    def __init__(self, optimizer, dim_info, capacity, batch_size, actor_lr, critic_lr, network_type, res_dir):
         # sum all the dims of each agent to get input dim for critic
-        global_obs_act_dim = sum(sum(val) for val in dim_info.values())
+        if network_type == 'CNN':
+            global_obs_act_dim = sum(np.prod(val[0]) + val[1] for val in dim_info.values())
+        else:
+            global_obs_act_dim = sum(sum(val) for val in dim_info.values())
         # create Agent(actor-critic) and replay buffer for each agent
         self.agents = {}
         self.buffers = {}
         for agent_id, (obs_dim, act_dim) in dim_info.items():
-            self.agents[agent_id] = Agent(obs_dim, act_dim, global_obs_act_dim, actor_lr, critic_lr)
+            self.agents[agent_id] = Agent(optimizer, obs_dim, act_dim, global_obs_act_dim, actor_lr, critic_lr, network_type)
             self.buffers[agent_id] = Buffer(capacity, obs_dim, act_dim, 'cpu')
         self.dim_info = dim_info
         self.buffer_size = self.buffers[agent_id].__len__()
@@ -65,6 +68,7 @@ class MADDPG:
         for agent_id, _ in self.dim_info.items():
             self.buffers[agent_id].clear()
             self.buffer_size = self.buffers[agent_id].__len__()
+        print("buffers cleared, buffer size: ", self.buffer_size)
 
 
     def sample(self, batch_size):
@@ -72,8 +76,9 @@ class MADDPG:
         # get the total num of transitions, these buffers should have same number of transitions
         try:
             total_num = len(self.buffers['agent_0'])
+      
         except:
-            total_num = len(self.buffers['player_0'])
+            total_num = len(self.buffers[list(self.buffers.keys())[0]])
         indices = np.random.choice(total_num, size=batch_size, replace=False)
 
         # NOTE that in MADDPG, we need the obs and actions of all agents
@@ -98,7 +103,7 @@ class MADDPG:
             a = self.agents[agent].action(o)  # torch.Size([1, action_size])
             # NOTE that the output is a tensor, convert it to int before input to the environment
             actions[agent] = a.squeeze(0).argmax().item()
-            self.logger.info(f'{agent} action: {actions[agent]}')
+            #self.logger.info(f'{agent} action: {actions[agent]}')
         return actions
 
     def learn(self, batch_size, gamma):

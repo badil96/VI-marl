@@ -39,6 +39,7 @@ def get_env(env_name, ep_len=25):
         new_env = rps_v2.parallel_env(max_cycles=ep_len)
     if env_name == 'mp_v0':
         new_env = mp_v0.parallel_env()
+  
 
     new_env.reset()
     _dim_info = {}
@@ -68,7 +69,7 @@ def agent_test(agents, env, episode,  results_dir, steps=25, save_gifs=False):
         prop_dist = {}
         for agent_id, agent in agents.agents.items():
             probs = []
-            obs_env = {'rps_v2':[0,1,2], 'mp_v0':[0,1], 'hg_v0':[0,1,2]}
+            obs_env = {'rps_v2':[0,1,2], 'mp_v0':[0,1]}
             obs = np.array(np.random.choice(obs_env[env], 1500))
             with torch.no_grad():
                 o = torch.from_numpy(obs).unsqueeze(1).float()
@@ -85,7 +86,7 @@ def agent_test(agents, env, episode,  results_dir, steps=25, save_gifs=False):
             # reward of each episode of each agent
             while test_env.agents:  # interact with the env for an episode
                 actions = agents.select_action(states)
-                next_states, rewards, dones, infos = test_env.step(actions)       
+                next_states, rewards, term, trunc, infos = test_env.step(actions)       
                 states = next_states
             if save_gifs:
                 #generate and store gif for the last episode

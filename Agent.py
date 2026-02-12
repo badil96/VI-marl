@@ -4,27 +4,38 @@ from typing import List
 import torch
 import torch.nn.functional as F
 from torch import nn, Tensor
-from torch.optim import Adam
+from torch.optim import Adam, SGD
 from torch.optim.lr_scheduler import StepLR
 
 import numpy as np 
 
 from extragradient import ExtraAdam
-
+from ogd import OptimisticGD
 
 class Agent:
     """Agent that can interact with environment from pettingzoo"""
 
-    def __init__(self, obs_dim, act_dim, global_obs_dim, actor_lr, critic_lr):
+    def __init__(self, optimizer, obs_dim, act_dim, global_obs_dim, actor_lr, critic_lr):
         self.actor = MLPNetwork(obs_dim, act_dim)
 
         # critic input all the observations and actions
         # if there are 3 agents for example, the input for critic is (obs1, obs2, obs3, act1, act2, act3)
         self.critic = MLPNetwork(global_obs_dim, 1)
-        self.actor_optimizer = Adam(self.actor.parameters(), lr=actor_lr)
-        # self.actor_optimizer = ExtraAdam(self.actor.parameters(), lr=actor_lr)
-        self.critic_optimizer = Adam(self.critic.parameters(), lr=critic_lr)
-        # self.critic_optimizer = ExtraAdam(self.critic.parameters(), lr=critic_lr)
+        self.optimizer = optimizer
+        if optimizer == 'Adam':
+            self.actor_optimizer = Adam(self.actor.parameters(), lr=actor_lr)
+            self.critic_optimizer = Adam(self.critic.parameters(), lr=critic_lr)
+        elif optimizer == 'SGD':
+            self.actor_optimizer = SGD(self.actor.parameters(), lr=actor_lr)
+            self.critic_optimizer = SGD(self.critic.parameters(), lr=critic_lr)
+        elif optimizer == 'ExtraAdam':
+            self.actor_optimizer = ExtraAdam(self.actor.parameters(), lr=actor_lr)
+            self.critic_optimizer = ExtraAdam(self.critic.parameters(), lr=critic_lr)
+        elif optimizer == 'OptimisticGD':
+            self.actor_optimizer = OptimisticGD(self.actor.parameters(), lr=actor_lr)
+            self.critic_optimizer = OptimisticGD(self.critic.parameters(), lr=critic_lr)
+
+        print(f'Initialized agent with {self.actor_optimizer} optimizer.')
         self.target_actor = deepcopy(self.actor)
         self.target_critic = deepcopy(self.critic)
         # self.actor_scheduler = StepLR(self.actor_optimizer, step_size=10000, gamma=0.1)
@@ -71,58 +82,71 @@ class Agent:
         return self.target_critic(x).squeeze(1)  # tensor with a given length
 
     def update_actor(self, loss):
-        #EG
-        # self.actor_optimizer.zero_grad()
-        # loss.backward(retain_graph=True)
-        # torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
-        # self.actor_optimizer.extrapolation()
-        # self.actor_optimizer.zero_grad()
-        # loss.backward()
-        # grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.actor.parameters()]))
-        # torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
-        # self.actor_optimizer.step()
-        #Adam
-        self.actor_optimizer.zero_grad()
-        loss.backward()
-        grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.actor.parameters()]))
-        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
-        self.actor_optimizer.step()
+        if self.optimizer == 'ExtraAdam':
+            self.actor_optimizer.zero_grad()
+            loss.backward(retain_graph=True)
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
+            self.actor_optimizer.extrapolation()
+            self.actor_optimizer.zero_grad()
+            loss.backward()
+            grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.actor.parameters()]))
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
+            self.actor_optimizer.step()
+        elif self.optimizer == 'Adam' or self.optimizer == 'OptimisticGD' or self.optimizer == 'SGD':
+            self.actor_optimizer.zero_grad()
+            loss.backward()
+            grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.actor.parameters()]))
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
+            self.actor_optimizer.step()
         return grad_norm
 
     def update_critic(self, loss):
-        #EG
-        # self.critic_optimizer.zero_grad()
-        # loss.backward(retain_graph=True)
-        # torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
-        # self.critic_optimizer.extrapolation()
-        # self.critic_optimizer.zero_grad()
-        # loss.backward()
-        # grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.critic.parameters()]))
-        # torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
-        # self.critic_optimizer.step()
-        #Adam
-        self.critic_optimizer.zero_grad()
-        loss.backward()
-        grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.critic.parameters()]))
-        torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
-        self.critic_optimizer.step()
+        if self.optimizer == 'ExtraAdam':
+            self.critic_optimizer.zero_grad()
+            loss.backward(retain_graph=True)
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
+            self.critic_optimizer.extrapolation()
+            self.critic_optimizer.zero_grad()
+            loss.backward()
+            grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.critic.parameters()]))
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
+            self.critic_optimizer.step()
+        elif self.optimizer == 'Adam' or self.optimizer == 'OptimisticGD' or self.optimizer == 'SGD':
+            self.critic_optimizer.zero_grad()
+            loss.backward()
+            grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.critic.parameters()]))
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
+            self.critic_optimizer.step()
         return grad_norm
 
 class AgentMATD3:
     """Agent that can interact with environment from pettingzoo"""
 
-    def __init__(self, obs_dim, act_dim, global_obs_dim, actor_lr, critic_lr):
+    def __init__(self, optimizer, obs_dim, act_dim, global_obs_dim, actor_lr, critic_lr):
         self.actor = MLPNetwork(obs_dim, act_dim)
 
         # critic input all the observations and actions
         # if there are 3 agents for example, the input for critic is (obs1, obs2, obs3, act1, act2, act3)
         self.critic1 = MLPNetwork(global_obs_dim, 1)
         self.critic2 = MLPNetwork(global_obs_dim, 1)
-        self.actor_optimizer = Adam(self.actor.parameters(), lr=actor_lr)
-        # self.actor_optimizer = ExtraAdam(self.actor.parameters(), lr=actor_lr)
-        self.critic1_optimizer = Adam(self.critic1.parameters(), lr=critic_lr)
-        self.critic2_optimizer = Adam(self.critic2.parameters(), lr=critic_lr)
-        # self.critic_optimizer = ExtraAdam(self.critic.parameters(), lr=critic_lr)
+        self.optimizer = optimizer
+        if optimizer == 'Adam':
+            self.actor_optimizer = Adam(self.actor.parameters(), lr=actor_lr)
+            self.critic1_optimizer = Adam(self.critic1.parameters(), lr=critic_lr)
+            self.critic2_optimizer = Adam(self.critic2.parameters(), lr=critic_lr)
+        elif optimizer == 'SGD':
+            self.actor_optimizer = SGD(self.actor.parameters(), lr=actor_lr)
+            self.critic1_optimizer = SGD(self.critic1.parameters(), lr=critic_lr)
+            self.critic2_optimizer = SGD(self.critic2.parameters(), lr=critic_lr)
+        elif optimizer == 'ExtraAdam':
+            self.actor_optimizer = ExtraAdam(self.actor.parameters(), lr=actor_lr)
+            self.critic1_optimizer = ExtraAdam(self.critic1.parameters(), lr=critic_lr)
+            self.critic2_optimizer = ExtraAdam(self.critic2.parameters(), lr=critic_lr)
+        elif optimizer == 'OptimisticGD':
+            self.actor_optimizer = OptimisticGD(self.actor.parameters(), lr=actor_lr)
+            self.critic1_optimizer = OptimisticGD(self.critic1.parameters(), lr=critic_lr)
+            self.critic2_optimizer = OptimisticGD(self.critic2.parameters(), lr=critic_lr)
+        print(f'Initialized agent with {self.actor_optimizer} optimizer.')
         self.target_actor = deepcopy(self.actor)
         self.target_critic1 = deepcopy(self.critic1)
         self.target_critic2 = deepcopy(self.critic2)
@@ -181,60 +205,60 @@ class AgentMATD3:
         return self.target_critic2(x).squeeze(1)  # tensor with a given length
 
     def update_actor(self, loss):
-        #EG
-        # self.actor_optimizer.zero_grad()
-        # loss.backward(retain_graph=True)
-        # torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
-        # self.actor_optimizer.extrapolation()
-        # self.actor_optimizer.zero_grad()
-        # loss.backward()
-        # grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.actor.parameters()]))
-        # torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
-        # self.actor_optimizer.step()
-        #Adam
-        self.actor_optimizer.zero_grad()
-        loss.backward()
-        grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.actor.parameters()]))
-        torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
-        self.actor_optimizer.step()
+        if self.optimizer == 'ExtraAdam':
+            self.actor_optimizer.zero_grad()
+            loss.backward(retain_graph=True)
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
+            self.actor_optimizer.extrapolation()
+            self.actor_optimizer.zero_grad()
+            loss.backward()
+            grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.actor.parameters()]))
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
+            self.actor_optimizer.step()
+        elif self.optimizer == 'Adam' or self.optimizer == 'OptimisticGD' or self.optimizer == 'SGD':
+            self.actor_optimizer.zero_grad()
+            loss.backward()
+            grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.actor.parameters()]))
+            torch.nn.utils.clip_grad_norm_(self.actor.parameters(), 0.5)
+            self.actor_optimizer.step()
         return grad_norm
 
     def update_critic1(self, loss):
-        #EG
-        # self.critic_optimizer.zero_grad()
-        # loss.backward(retain_graph=True)
-        # torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
-        # self.critic_optimizer.extrapolation()
-        # self.critic_optimizer.zero_grad()
-        # loss.backward()
-        # grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.critic.parameters()]))
-        # torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
-        # self.critic_optimizer.step()
-        #Adam
-        self.critic1_optimizer.zero_grad()
-        loss.backward()
-        grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.critic1.parameters()]))
-        torch.nn.utils.clip_grad_norm_(self.critic1.parameters(), 0.5)
-        self.critic1_optimizer.step()
+        if self.optimizer == 'ExtraAdam':
+            self.critic1_optimizer.zero_grad()
+            loss.backward(retain_graph=True)
+            torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
+            self.critic1_optimizer.extrapolation()
+            self.critic1_optimizer.zero_grad()
+            loss.backward()
+            grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.critic1.parameters()]))
+            torch.nn.utils.clip_grad_norm_(self.critic1.parameters(), 0.5)
+            self.critic1_optimizer.step()
+        elif self.optimizer == 'Adam' or self.optimizer == 'OptimisticGD' or self.optimizer == 'SGD':
+            self.critic1_optimizer.zero_grad()
+            loss.backward()
+            grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.critic1.parameters()]))
+            torch.nn.utils.clip_grad_norm_(self.critic1.parameters(), 0.5)
+            self.critic1_optimizer.step()
         return grad_norm
         
     def update_critic2(self, loss):
-        #EG
-        # self.critic_optimizer.zero_grad()
-        # loss.backward(retain_graph=True)
-        # torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
-        # self.critic_optimizer.extrapolation()
-        # self.critic_optimizer.zero_grad()
-        # loss.backward()
-        # grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.critic.parameters()]))
-        # torch.nn.utils.clip_grad_norm_(self.critic.parameters(), 0.5)
-        # self.critic_optimizer.step()
-        #Adam
-        self.critic2_optimizer.zero_grad()
-        loss.backward()
-        grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.critic2.parameters()]))
-        torch.nn.utils.clip_grad_norm_(self.critic2.parameters(), 0.5)
-        self.critic2_optimizer.step()
+        if self.optimizer == 'ExtraAdam':
+            self.critic2_optimizer.zero_grad()
+            loss.backward(retain_graph=True)
+            torch.nn.utils.clip_grad_norm_(self.critic2.parameters(), 0.5)
+            self.critic2_optimizer.extrapolation()
+            self.critic2_optimizer.zero_grad()
+            loss.backward()
+            grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.critic2.parameters()]))
+            torch.nn.utils.clip_grad_norm_(self.critic2.parameters(), 0.5)
+            self.critic2_optimizer.step()
+        elif self.optimizer == 'Adam' or self.optimizer == 'OptimisticGD' or self.optimizer == 'SGD':
+            self.critic2_optimizer.zero_grad()
+            loss.backward()
+            grad_norm = np.sqrt(sum([torch.norm(p.grad)**2 for p in self.critic2.parameters()]))
+            torch.nn.utils.clip_grad_norm_(self.critic2.parameters(), 0.5)
+            self.critic2_optimizer.step()
         return grad_norm
 
 
