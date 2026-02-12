@@ -107,7 +107,7 @@ if __name__ == '__main__':
         torch.backends.cudnn.deterministic = True
 
         # create folder to save result
-        env_dir = os.path.join('./results', args.env_name, '_', args.algo, 'optimizer: '+ args.optimizer +'-lr'+ str(args.actor_lr)+ '-Lookahead: '+str(args.lookahead)+'Alpha: '+ str(args.lookahead_alpha)+ 'Steps: '+ str(args.lookahead_step_1)+ str(args.lookahead_step_2)+str(args.lookahead_step_3))
+        env_dir = os.path.join('./results', args.env_name, args.algo, 'optimizer:'+ args.optimizer +'-lr'+ str(args.actor_lr)+ '-Lookahead:'+str(args.lookahead)+'Alpha:'+ str(args.lookahead_alpha)+ 'Steps:'+ str(args.lookahead_step_1)+ str(args.lookahead_step_2)+str(args.lookahead_step_3))
         if not os.path.exists(env_dir):
             os.makedirs(env_dir)
         total_files = len([file for file in os.listdir(env_dir)])

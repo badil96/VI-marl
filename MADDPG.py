@@ -38,7 +38,7 @@ class MADDPG:
         self.agents = {}
         self.buffers = {}
         for agent_id, (obs_dim, act_dim) in dim_info.items():
-            self.agents[agent_id] = Agent(optimizer, obs_dim, act_dim, global_obs_act_dim, actor_lr, critic_lr, network_type)
+            self.agents[agent_id] = Agent(optimizer, obs_dim, act_dim, global_obs_act_dim, actor_lr, critic_lr)
             self.buffers[agent_id] = Buffer(capacity, obs_dim, act_dim, 'cpu')
         self.dim_info = dim_info
         self.buffer_size = self.buffers[agent_id].__len__()
@@ -155,9 +155,9 @@ class MADDPG:
 
 
     @classmethod
-    def load(cls, dim_info, file):
+    def load(cls,optimizer, dim_info, file):
         """init maddpg using the model saved in `file`"""
-        instance = cls(dim_info, 0, 0, 0, 0, os.path.dirname(file))
+        instance = cls(optimizer, dim_info, 0, 0, 0, 0, 'MLP', os.path.dirname(file))
         data = torch.load(file)
         for agent_id, agent in instance.agents.items():
             agent.actor.load_state_dict(data[agent_id])
